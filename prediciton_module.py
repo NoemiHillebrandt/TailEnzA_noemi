@@ -1,19 +1,24 @@
+import os
 import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature, FeatureLocation
+from Bio.Align.Applications import MuscleCommandline
+from Bio import AlignIO
 #from enzyme_prediction import *
 from feature_generation import *
 from Bio import pairwise2
 import pickle
 
+muscle = r"muscle"
+
 #file_for_prediction  ="Input/extract_rowfile.fasta"
 directory_of_classifiers_BGC_type = "Classifier/trained_machine_learning_classifiers_repeated/"
 directory_of_classifiers_NP_affiliation = "Classifier/best_np_affiliation_classifier/"
-fastas_aligned_before = False
+fastas_aligned_before = True
 permutation_file = "permutations.txt"
-gbff_file = "gbff_files/vancomycin.gb"
+gbff_file = "gbff_files/streptomyces_coelicolor_a32.gbff"
 output_directory = "Output_new/"
 filename_output=output_directory+gbff_file.split("/")[1].split(".")[0]+".csv"
 enzymes=["p450","ycao","Methyl","SAM"]
@@ -58,6 +63,12 @@ dict_classifier_NP_affiliation = {"p450":"_ExtraTreesClassifier_classifier.sav",
                "ycao":"_AdaBoostClassifier_classifier.sav",
                "SAM":"_AdaBoostClassifier_classifier.sav",
                "Methyl":"_ExtraTreesClassifier_classifier.sav"
+              }
+
+dict_parameters_alignment_BGC_affiliation = {"p450":[-8, -2],
+               "ycao":[-8, -1],
+               "SAM":[-2, -1],
+               "Methyl":[-1, -1]
               }
 def extract_feature_properties(feature):
     
@@ -158,22 +169,23 @@ for dataframe in list_of_dataframes:
     fragment_rows=[]
     fragment_matrix = pd.DataFrame()
     enzyme = dataframe["Enzyme"][0]
+    translated_sequences = [SeqRecord(Seq(model_proteins_for_alignment[enzyme]), id ="Reference")]
     #list_results =[]
-    for row in dataframe.iterrows():
-        #print(row)
-        translated_sequence = row[1]["sequence"]
+    for index,row in dataframe.iterrows():
+        #print(enzyme)
+        translated_sequences.append(SeqRecord(Seq(row["sequence"]), id = index))
+    SeqIO.write(translated_sequences, "temp/temp_input.fasta", "fasta")
+    [gap_opening_penalty, gap_extend_penalty] = dict_parameters_alignment_BGC_affiliation[enzyme]
+    # command from coomand line
+    muscle_commmand_line = f"{muscle} -align temp/temp_input.fasta -output temp/temp_output.fasta"
+    #print(muscle_commmand_line, type(muscle_commmand_line))
+    os.system(muscle_commmand_line)
+    alignment = AlignIO.read(open("temp/temp_output.fasta"), "fasta")
+
 #       align the AA sequence against the model protein for that enzyme type and fragment according to the splitting list
-        if enzyme=="ycao":
-            alignment = pairwise2.align.globalms(model_proteins_for_alignment[enzyme], translated_sequence, 1, -1, -8, -2)
-        elif enzyme=="p450":
-            alignment = pairwise2.align.globalms(model_proteins_for_alignment[enzyme], translated_sequence, 1, -1, -8, -1)
-        elif enzyme=="SAM":
-            alignment = pairwise2.align.globalms(model_proteins_for_alignment[enzyme], translated_sequence, 1, -1, -2, -1)
-        elif enzyme=="Methyl":
-            alignment = pairwise2.align.globalms(model_proteins_for_alignment[enzyme], translated_sequence, 1, -1, -1, -1)
-        #print(alignment)
-        fragment_rows.append(fragment_alignment(alignment[0],splitting_lists[enzyme],fastas_aligned_before)) # weil es das für jeweils einzelne Sequenzen macht, besteht die fragment matrix aus zwei Zeilen
-    fragment_matrix = fragment_matrix.append(fragment_rows)
+
+    fragment_matrix = fragment_alignment(alignment,splitting_lists[enzyme],fastas_aligned_before)
+    #print(fragment_matrix, dataframe)
     fragment_matrix.set_index(dataframe.index)
     #print(fragment_matrix)
     feature_matrix=featurize(fragment_matrix, permutations, fragments[enzyme], include_charge_features)
@@ -191,7 +203,9 @@ for dataframe in list_of_dataframes:
     # predict substrate
     predicted_BGC = classifier_BGC_type.predict(feature_matrix)
     score_predicted_BGCs = classifier_BGC_type.predict_proba(feature_matrix)
+    results= pd.DataFrame(score_predicted_BGCs, columns=classifier_BGC_type.classes_)
+
     dataframe["BGC_type"] = predicted_BGC
-    dataframe["BGC_type_score"] = score_predicted_BGCs
-    print(dataframe)
-    #print(dataframe[["Enzyme","NP_BGC_affiliation","NP_BGC_affiliation_score","BGC_type","BGC_type_score"]])
+    dataframe["BGC_type_score"] = [max(score_list) for score_list in score_predicted_BGCs]
+    #print(dataframe)
+    print(dataframe[["Enzyme","NP_BGC_affiliation","NP_BGC_affiliation_score","BGC_type","BGC_type_score"]])

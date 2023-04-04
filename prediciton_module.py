@@ -12,16 +12,17 @@ from Bio import pairwise2
 import pickle
 
 muscle = r"muscle"
-
+#muscle = "/home/noemi/Documents/muscle3"
 #file_for_prediction  ="Input/extract_rowfile.fasta"
 directory_of_classifiers_BGC_type = "Classifier/trained_machine_learning_classifiers_repeated/"
 directory_of_classifiers_NP_affiliation = "Classifier/best_np_affiliation_classifier/"
 fastas_aligned_before = True
 permutation_file = "permutations.txt"
-gbff_file = "gbff_files/streptomyces_coelicolor_a32.gbff"
+gbff_file = "gbff_files/streptomyces_venezuelae.gbff"
 output_directory = "Output_new/"
 filename_output=output_directory+gbff_file.split("/")[1].split(".")[0]+".csv"
-enzymes=["p450","ycao","Methyl","SAM"]
+#enzymes=["p450","ycao","Methyl","SAM"]
+enzymes=["p450","ycao","SAM","Methyl"]
 BGC_types=["ripp","nrp","pk"]
 include_charge_features=True
 
@@ -155,8 +156,8 @@ else:
     
 
 
-#list_of_dataframes = [ycao_df, p450_df]
-list_of_dataframes = [ycao_df, radical_sam_df,methyl_df,p450_df]     
+#list_of_dataframes = [methyl_df]
+list_of_dataframes = [ycao_df,radical_sam_df,methyl_df,p450_df]     
 results = pd.DataFrame()
 for dataframe in list_of_dataframes: 
     dataframe["BGC_type"] = ""
@@ -176,9 +177,12 @@ for dataframe in list_of_dataframes:
         translated_sequences.append(SeqRecord(Seq(row["sequence"]), id = index))
     SeqIO.write(translated_sequences, "temp/temp_input.fasta", "fasta")
     [gap_opening_penalty, gap_extend_penalty] = dict_parameters_alignment_BGC_affiliation[enzyme]
-    # command from coomand line
+    
+    # command muscle3 from comand line
+    #muscle_commmand_line = f"{muscle} -in temp/temp_input.fasta -out temp/temp_output.fasta -gapopen {gap_opening_penalty} -gapextend {gap_extend_penalty} -center 0 -seqtype protein"
+    #command muscle5 from command line
     muscle_commmand_line = f"{muscle} -align temp/temp_input.fasta -output temp/temp_output.fasta"
-    #print(muscle_commmand_line, type(muscle_commmand_line))
+    print(muscle_commmand_line, type(muscle_commmand_line))
     os.system(muscle_commmand_line)
     alignment = AlignIO.read(open("temp/temp_output.fasta"), "fasta")
 
@@ -208,4 +212,4 @@ for dataframe in list_of_dataframes:
     dataframe["BGC_type"] = predicted_BGC
     dataframe["BGC_type_score"] = [max(score_list) for score_list in score_predicted_BGCs]
     #print(dataframe)
-    print(dataframe[["Enzyme","NP_BGC_affiliation","NP_BGC_affiliation_score","BGC_type","BGC_type_score"]])
+    print(dataframe.head(60)[["Enzyme","cds_start","cds_end","NP_BGC_affiliation","NP_BGC_affiliation_score","BGC_type","BGC_type_score"]])

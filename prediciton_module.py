@@ -226,6 +226,7 @@ for gb_record in SeqIO.parse(gbff_file, "genbank"):
             window_end = row["30kb_window_end"]
             filtered_dataframe = complete_dataframe[(complete_dataframe['cds_start'] >= window_start) & (complete_dataframe['cds_end'] <= window_end)]
             score = 0
+            print(filtered_dataframe)
             # gibt für jedes Fenster einen Score in Abhängigkeit von ripp-Zuordnung und von BGC-type Zuordnung
             for index, rows_rows in filtered_dataframe.iterrows():
                 
@@ -234,20 +235,23 @@ for gb_record in SeqIO.parse(gbff_file, "genbank"):
                 else:
                     score = score - rows_rows["BGC_type_score"] - 1
             # gibt Seq Record für jedes Fenster aus
-            record = gb_record[window_start:window_end] 
-            
-            print(record)
+            record = gb_record[window_start-1:window_end+1]
+            record.annotations["molecule_type"] = "dna"
+            record.annotations["score"] = score
+            filename_record = f"{gb_record.id}_{window_start}_{window_end}.gb"
+            SeqIO.write(record, filename_record, "gb")
+
 # wenn scrore > wert:
 #         extract genbank from source gb 
 #         -> save
 #         + append score to list
 
-outpath = os.path.splitext(os.path.basename(genbank_path))[0] + ".fasta" 
-SeqIO.write(intergenic_records, open(outpath,"w"), "fasta")
+#outpath = os.path.splitext(os.path.basename(genbank_path))[0] + ".fasta" 
+#SeqIO.write(intergenic_records, open(outpath,"w"), "fasta")
 
             #print(full_record)
-for record in record: 
-    SeqIO.write(record, "output_Genbank_file", "fasta")
+#for record in record: 
+   
     #print(filtered_dataframe[["Enzyme","BGC_type_score","BGC_type","30kb_window_start","30kb_window_end"]])
             
     
